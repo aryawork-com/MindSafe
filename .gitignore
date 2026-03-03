@@ -1,0 +1,7 @@
+/target
+/backup
+mindsafe.db3
+state.json
+mindsafe.db
+mindsafe.db-shm
+mindsafe.db-wal

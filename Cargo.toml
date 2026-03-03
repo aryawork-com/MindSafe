@@ -1,0 +1,76 @@
+[package]
+name = "mindsafe"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+authors = ["Aryawork <contact@aryawork.com>"]
+description = "MindSafe is a secure, offline-first notebook/editor built with Rust and egui-eframe, designed so that ONLY you can access and read your data."
+homepage = "https://aryawork.com"
+repository = "https://github.com/aryawork-com/mindsafe"
+keywords = ["rust", "notes-editor","notes-taking-app","privacy","encrypted-notes","privacy-editor"]
+readme = "README.md"
+
+[dependencies]
+eframe = { version = "0.33.3", features = ["persistence"] }
+egui_extras = { version = "0.33.3", features = ["svg"] }
+image = { version = "0.25.9"}
+egui = "0.33.3"
+egui-i18n = { version = "0.1.2", features = ["fluent"] }
+egui_material_icons = "0.5.0"
+egui-notify = "0.21.0"
+rfd = "0.17.2"
+uuid = { version = "1.21.0", features = ["v4"] }
+chrono = { version = "0.4.43", features = ["serde"] }
+rusqlite = { version = "0.38.0", features = ["bundled-sqlcipher", "chrono"] }
+zeroize = { version = "1.8.2", features = ["derive", "zeroize_derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+dirs = "6.0.0"
+argon2 = "0.5.3"
+chacha20poly1305 = "0.10.1"
+thiserror = "2.0.18"
+serde_bytes = "0.11.19"
+cfg-if = "1.0.4"
+rand = "0.10.0"
+hex = "0.4.3"
+hkdf = "0.12.4"
+sha2 = "0.10.9"
+getrandom = { version = "0.4.1", features = ["sys_rng"] }
+
+[[bin]]
+name = "mindsafe"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = 3
+debug = 2
+codegen-units = 1
+
+[package.metadata.bundle]
+name = "MindSafe"
+identifier = "com.aryawork.mindsafe"
+icon = ["icons/icon.icns", "icons/icon.png", "icons/icon.ico"]
+resources = ["assets/"]      # Extra files to include
+category = "Utility"
+short_description = "MindSafe is a secure, offline-first notebook/editor."
+long_description = """
+MindSafe is a secure, offline-first notebook/editor built with Rust, designed so that ONLY you can access and read your data.
+"""
+
+# Linux-specific
+deb_depends = ["libgtk-3-0", "libssl3", "libsqlite3-0"]
+# linux_exec_args = []
+
+# Windows-specific
+# windows_exec_args = []
+
+[features]
+mlock = ["libc", "winapi"]
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2.182", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["memoryapi"], optional = true }
