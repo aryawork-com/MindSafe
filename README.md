@@ -2,7 +2,7 @@
 
 > Your notes deserve absolute privacy.
 
-MindSafe is a secure, offline-first notebook/editor built with [Rust](https://www.rust-lang.org/) and [egui-eframe](https://www.egui.rs/), designed so that **ONLY** you can access and read your data.
+MindSafe is a secure, offline-first notebook/editor built with [Rust](https://www.rust-lang.org/) and [egui-eframe](https://www.egui.rs/), designed so that **ONLY** you can access and read your data. Whether you’re writing ideas, keeping a personal journal, or storing sensitive information, this app ensures your words remain yours — **private, secure, and under your control.**
 
 ## Features
 
@@ -30,8 +30,6 @@ tags
 auto save 
 history
 export
-
-Whether you’re writing ideas, keeping a personal journal, or storing sensitive information, this app ensures your words remain yours — **private, secure, and under your control.**
 
 ## FOSS Complaint
 

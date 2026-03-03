@@ -10,7 +10,7 @@ from tabulate import tabulate
 # Load environment variables
 load_dotenv()
 
-SERVICE_NAME = os.getenv("SERVICE_NAME", "default_service")
+APP_NAME = "MindSafe"
 
 VERSION_FILE = Path("src/version.rs")
 
@@ -111,17 +111,9 @@ def main():
 
     commit_and_push(formatted_message)
 
-    # Summary
-    # print("\n---------Summary---------\n")
-    # print(f"Date: {current_datetime}")
-    # print(f"Service: {SERVICE_NAME}")
-    # print(f"  1. Total Number of changes: {num_changes}")
-    # print(f"  2. Change Category: {mark}")
-    # print(f"  3. Version updated from {current_version} to {new_version}")
-    # print(f"  4. Pushed with Commit message: {formatted_message}")
 
     print("\n---------Summary---------\n")
-    print(tabulate([['Date', current_datetime], ['Service Name', SERVICE_NAME], ['Number of Changes', num_changes], ['Changes Category', mark.capitalize()], ['Old Version', current_version], ['New Version', new_version], ['Commit Message', commit_message.capitalize()]],
+    print(tabulate([['Date', current_datetime], ['App Name', APP_NAME], ['Number of Changes', num_changes], ['Changes Category', mark.capitalize()], ['Old Version', current_version], ['New Version', new_version], ['Commit Message', commit_message.capitalize()]],
                    headers=['Parameter', 'Value']))
     print("\n---------END---------\n")
 
