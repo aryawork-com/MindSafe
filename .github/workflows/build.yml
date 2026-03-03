@@ -79,20 +79,35 @@ jobs:
       # ---------------- Build macOS universal ----------------
       - name: Build macOS universal
         if: runner.os == 'macOS'
-        run: |
-          cargo build --release --target x86_64-apple-darwin -j 2 --config profile.release.lto=false
-          cargo build --release --target aarch64-apple-darwin -j 2 --config profile.release.lto=false
+        run: cargo bundle --release
 
-          mkdir -p target/universal
-          lipo -create \
-            target/x86_64-apple-darwin/release/mindsafe \
-            target/aarch64-apple-darwin/release/mindsafe \
-            -output target/universal/mindsafe
+      - name: Create DMG
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil create -volname "MindSafe" \
+            -srcfolder target/release/bundle/osx/MindSafe.app \
+            -ov -format UDZO mindsafe-macos.dmg
+
+        # run: |
+        #   cargo build --release --target x86_64-apple-darwin -j 2 --config profile.release.lto=false
+        #   cargo build --release --target aarch64-apple-darwin -j 2 --config profile.release.lto=false
+
+        #   mkdir -p target/universal
+        #   lipo -create \
+        #     target/x86_64-apple-darwin/release/mindsafe \
+        #     target/aarch64-apple-darwin/release/mindsafe \
+        #     -output target/universal/mindsafe
 
       # ---------------- Clean Cache for Windows ----------------
       - name: Clean
         if: runner.os == 'Windows'
         run: cargo clean
+
+      - name: Force vendored OpenSSL
+        if: runner.os == 'Windows'
+        run: |
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_NO_VENDOR=0" >> $env:GITHUB_ENV
 
       # ---------------- Build Windows/Linux ----------------
       - name: Build (Windows/Linux)
