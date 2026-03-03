@@ -17,10 +17,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  cache:
-    name: Clean
-    run: cargo clean
-
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -92,6 +88,11 @@ jobs:
             target/x86_64-apple-darwin/release/mindsafe \
             target/aarch64-apple-darwin/release/mindsafe \
             -output target/universal/mindsafe
+
+      # ---------------- Clean Cache for Windows ----------------
+      - name: Clean
+        if: runner.os == 'Windows'
+        run: cargo clean
 
       # ---------------- Build Windows/Linux ----------------
       - name: Build (Windows/Linux)
