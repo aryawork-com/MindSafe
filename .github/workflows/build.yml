@@ -17,6 +17,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  cache:
+    name: Clean
+    run: cargo clean
+
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -61,13 +65,13 @@ jobs:
             pkg-config
 
       # ---------------- Windows OpenSSL ----------------
-      - name: Install OpenSSL (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install openssl -y
-          echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include" >> $env:GITHUB_ENV
+      # - name: Install OpenSSL (Windows)
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #     choco install openssl -y
+      #     echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include" >> $env:GITHUB_ENV
 
       # ---------------- macOS universal setup ----------------
       - name: Add macOS targets
@@ -95,11 +99,15 @@ jobs:
         run: |
           cargo build --release --target ${{ matrix.target }} -j 2 --config profile.release.lto=false
 
+      # ---------------- Create dist folder ----------------
+      - name: Prepare dist folder
+        run: mkdir -p dist
+        shell: bash
+
       # ---------------- Package macOS ----------------
       - name: Package macOS
         if: runner.os == 'macOS'
         run: |
-          mkdir dist
           cp target/universal/mindsafe dist/
           cd dist
           tar -czf ${{ matrix.artifact_name }}.tar.gz mindsafe
@@ -108,7 +116,6 @@ jobs:
       - name: Package Linux
         if: runner.os == 'Linux'
         run: |
-          mkdir dist
           cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} dist/
           cd dist
           tar -czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.binary_name }}
@@ -117,7 +124,6 @@ jobs:
       - name: Package Windows
         if: runner.os == 'Windows'
         run: |
-          mkdir dist
           copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} dist\
           powershell Compress-Archive -Path dist\${{ matrix.binary_name }} -DestinationPath dist\${{ matrix.artifact_name }}.zip
 
@@ -132,11 +138,17 @@ jobs:
           fi
         shell: bash
 
-      # ---------------- Upload Release ----------------
+      # # ---------------- Upload Release ----------------
+      # - name: Upload to GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: |
+      #       dist/*.tar.gz
+      #       dist/*.zip
+      #       dist/SHA256SUMS.txt
+      # ---------------- Upload Everything ----------------
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/SHA256SUMS.txt
+            dist/*
