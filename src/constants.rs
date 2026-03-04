@@ -78,6 +78,7 @@ pub const MIGRATIONS: &[Migration] = &[
         query: "CREATE TABLE IF NOT EXISTS activities (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            unique_key TEXT NOT NULL UNIQUE,
             description TEXT DEFAULT NULL,
             activity_type INTEGER NOT NULL,
             retain_duration INTEGER NOT NULL DEFAULT 30,
@@ -118,6 +119,17 @@ pub const MIGRATIONS: &[Migration] = &[
     Migration {
         serial_id: 9,
         name: "create_activity_logs_triggers",
+        query: "CREATE TRIGGER IF NOT EXISTS update_activity_logs_updated_at
+            BEFORE UPDATE ON activity_logs
+            FOR EACH ROW
+            BEGIN
+                SELECT NEW.updated_at = DATETIME('now', 'utc');
+            END;",
+        version: "1.0.0",
+    },
+    Migration {
+        serial_id: 10,
+        name: "create_default_activities",
         query: "CREATE TRIGGER IF NOT EXISTS update_activity_logs_updated_at
             BEFORE UPDATE ON activity_logs
             FOR EACH ROW

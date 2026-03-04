@@ -1,7 +1,7 @@
-use ::rusqlite::Connection;
-use ::zeroize::{Zeroize, ZeroizeOnDrop};
 use chrono::{DateTime, Utc};
+use rusqlite::Connection;
 use uuid::Uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SystemActivityType {
@@ -27,9 +27,10 @@ impl Zeroize for SystemActivityType {
 impl ZeroizeOnDrop for SystemActivityType {}
 
 #[derive(Clone, Debug)]
-pub struct Activities {
+pub struct Activity {
     pub id: Uuid,
     pub name: String,
+    pub unique_key: String,
     pub description: String,
     pub activity_type: SystemActivityType,
     /// in days
@@ -40,11 +41,12 @@ pub struct Activities {
     pub updated_at: DateTime<Utc>,
 }
 
-impl Zeroize for Activities {
+impl Zeroize for Activity {
     fn zeroize(&mut self) {
         self.id = Uuid::nil();
         self.name.zeroize();
         self.description.zeroize();
+        self.unique_key.zeroize();
         self.retain_duration.zeroize();
         self.enabled.zeroize();
         self.activity_type.zeroize();
@@ -54,11 +56,12 @@ impl Zeroize for Activities {
     }
 }
 
-impl ZeroizeOnDrop for Activities {}
+impl ZeroizeOnDrop for Activity {}
 
-impl Activities {
+impl Activity {
     pub fn new(
         name: String,
+        unique_key: String,
         description: String,
         activity_type: SystemActivityType,
         retain_duration: i32,
@@ -66,6 +69,7 @@ impl Activities {
         Self {
             id: Uuid::new_v4(),
             name,
+            unique_key,
             description,
             activity_type,
             retain_duration,
@@ -80,8 +84,8 @@ impl Activities {
     pub fn insert(&self, conn: &Connection) {
         // NOTE: created_at & updated_at will be set as default by DB
         match conn.execute(
-            "INSERT INTO activities (id, name, description, activity_type, retain_duration, enabled, requires_review) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);",
-            (&self.id.to_string(), &self.name, &self.description, &self.activity_type.value(), &self.retain_duration, &self.enabled, &self.requires_review),
+            "INSERT INTO activities (id, name, unique_key, description, activity_type, retain_duration, enabled, requires_review) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);",
+            (&self.id.to_string(), &self.name, &self.unique_key, &self.description, &self.activity_type.value(), &self.retain_duration, &self.enabled, &self.requires_review),
         ) {
             Ok(_) => {}
             Err(e) => {
@@ -93,7 +97,7 @@ impl Activities {
     pub fn update(&mut self, conn: &Connection) {
         match conn.execute(
             "UPDATE activities SET name = ?1, description = ?2, activity_type = ?3, retain_duration = ?4, enabled = ?5,
-requires_review = ?6 WHERE id = ?7;",
+            requires_review = ?6 WHERE id = ?7;",
             (&self.name, &self.description, &self.activity_type.value(), &self.retain_duration, &self.enabled, &self.requires_review, &self.id.to_string(),),
         ) {
             Ok(_) => {
@@ -130,6 +134,63 @@ requires_review = ?6 WHERE id = ?7;",
             Err(e) => {
                 println!("Error updating requires_review in activities to db: {e}");
             }
+        }
+    }
+
+    pub fn seed_default_activities(conn: &Connection) {
+        let defaults = vec![
+            Activity {
+                id: Uuid::new_v4(),
+                name: "Login".to_string(),
+                unique_key: "auth_login".to_string(),
+                description: "User logged into the system".to_owned(),
+                activity_type: SystemActivityType::Authentication,
+                retain_duration: 90,
+                enabled: true,
+                requires_review: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            Activity {
+                id: Uuid::new_v4(),
+                name: "Signup".to_string(),
+                unique_key: "auth_signup".to_string(),
+                description: "User created a new account".to_owned(),
+                activity_type: SystemActivityType::Authentication,
+                retain_duration: 90,
+                enabled: true,
+                requires_review: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            Activity {
+                id: Uuid::new_v4(),
+                name: "Logout".to_string(),
+                unique_key: "auth_logout".to_string(),
+                description: "User logged out of the system".to_owned(),
+                activity_type: SystemActivityType::Authentication,
+                retain_duration: 30,
+                enabled: true,
+                requires_review: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            Activity {
+                id: Uuid::new_v4(),
+                name: "Configuration Update".to_string(),
+                unique_key: "config_update".to_string(),
+                description: "System configuration was updated".to_owned(),
+                activity_type: SystemActivityType::Configuration,
+                retain_duration: 180,
+                enabled: true,
+                requires_review: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+        ];
+
+        for activity in defaults {
+            activity.insert(conn);
         }
     }
 }

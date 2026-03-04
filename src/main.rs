@@ -5,6 +5,7 @@
 /// Get instructions to install [cargo watch](https://crates.io/crates/cargo-watch)
 ///
 /// Use 2 spaces after Icon in format!() for better visibility
+// native libraries
 use std::time::Instant;
 
 // external libraries
@@ -92,7 +93,8 @@ impl ZeroizeOnDrop for MindSafeApp {}
 impl Default for MindSafeApp {
     fn default() -> Self {
         Self {
-            password: String::new(),
+            // password: String::new(),
+            password: String::from("pErfect@1994#"),
             db_key: Vec::new(),
             file_key: Vec::new(),
             session_id: Uuid::new_v4(),
@@ -122,14 +124,52 @@ impl Default for MindSafeApp {
 impl MindSafeApp {
     // ---------- Helper Functions
     fn word_count(&self) -> usize {
-        self.text
-            .split_whitespace()
-            .filter(|w| !w.is_empty())
-            .count()
+        // Current Active tab Id
+        let active_note_id = self.tabs_controller.active_note_tab_id;
+        let tabs_controller = &self.tabs_controller;
+
+        let word_count: usize = if let Some(active_tab) = tabs_controller
+            .tabs
+            .iter()
+            .find(|tab| tab.note.id == active_note_id)
+        {
+            if !active_tab.note.text.is_empty() {
+                active_tab
+                    .note
+                    .text
+                    .split_whitespace()
+                    .filter(|w| !w.is_empty())
+                    .count()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        word_count
     }
 
     fn char_count(&self) -> usize {
-        self.text.chars().count()
+        // Current Active tab Id
+        let active_note_id = self.tabs_controller.active_note_tab_id;
+        let tabs_controller = &self.tabs_controller;
+
+        let word_count: usize = if let Some(active_tab) = tabs_controller
+            .tabs
+            .iter()
+            .find(|tab| tab.note.id == active_note_id)
+        {
+            if !active_tab.note.text.is_empty() {
+                active_tab.note.text.chars().count()
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        word_count
     }
 
     fn get_all_notes(&mut self) {

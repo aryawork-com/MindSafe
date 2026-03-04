@@ -1,7 +1,7 @@
 use ::rusqlite::Connection;
 use ::uuid::Uuid;
 
-use crate::models::{activities::Activities, activity_logs::ActivityLog};
+use crate::models::{activities::Activity, activity_logs::ActivityLog};
 
 pub enum ActivityRecordType {
     // Authentication
@@ -49,7 +49,7 @@ impl ActivityRecordType {
 }
 
 pub struct ActivityLogService {
-    pub activities: Vec<Activities>,
+    pub activities: Vec<Activity>,
 }
 
 impl ActivityLogService {

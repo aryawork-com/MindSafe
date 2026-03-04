@@ -26,6 +26,7 @@ use crate::{
     },
 };
 
+// Top bar having Tabs and Top Buttons
 pub(crate) fn create_top_bar(app: &mut MindSafeApp, ctx: &Context) {
     TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.vertical(|ui| {
@@ -59,6 +60,8 @@ pub(crate) fn create_top_bar(app: &mut MindSafeApp, ctx: &Context) {
         });
     });
 }
+
+// Side Panel having Logo, Notes, Bottom Buttons
 pub(crate) fn create_side_panel(app: &mut MindSafeApp, ctx: &Context) {
     SidePanel::new(Side::Left, "side-panel-main")
         .resizable(true)
@@ -336,9 +339,8 @@ pub(crate) fn create_top_button_bar(app: &mut MindSafeApp, ui: &mut Ui) {
             {
                 // app.save_as();
             }
-            if ui.button(format!("{ICON_FILE_UPLOAD}  Export",)).clicked() {
-                // app.save_as();
-            }
+            // if ui.button(format!("{ICON_FILE_UPLOAD}  Export",)).clicked() {
+            // }
 
             ui.separator();
 

@@ -14,7 +14,7 @@ use zeroize::Zeroize;
 use crate::{
     MindSafeApp,
     constants::MIGRATIONS,
-    models::config::Config,
+    models::{activities::Activity, config::Config},
     pages::Page,
     services::{
         database::DatabaseService,
@@ -166,18 +166,23 @@ impl AuthenticationService {
                             // Inserting default config
                             Ok(()) => {
                                 // Saving current app config in db
-                                app.config.insert(db_service.get_connection());
+                                let conn = db_service.get_connection();
+
+                                app.config.insert(conn);
+
+                                Activity::seed_default_activities(conn);
+
                                 app.database_service = Some(db_service);
                                 app.toasts.success("Signed up!");
                                 app.current_page = Page::Editor
                             }
-                            Err(_e) => {
-                                println!("Error while running migrations db: {_e}");
+                            Err(e) => {
+                                println!("Error while running migrations db: {e}");
                             }
                         }
                     }
-                    Err(_e) => {
-                        println!("Error while getting db while registering: {_e}");
+                    Err(e) => {
+                        println!("Error while getting db while registering: {e}");
                     }
                 };
             }
@@ -213,6 +218,10 @@ impl AuthenticationService {
                                     Ok(()) => match Config::get(db_service.get_connection()) {
                                         Ok(config) => {
                                             // Getting saved config from db
+                                            Activity::seed_default_activities(
+                                                db_service.get_connection(),
+                                            );
+
                                             app.config = config;
                                             app.database_service = Some(db_service);
                                             app.toasts.success("Logged in!");
