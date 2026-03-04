@@ -99,9 +99,11 @@ jobs:
       - name: Create DMG
         if: runner.os == 'macOS'
         run: |
+          mkdir dmg
+          cp target/universal/mindsafe dmg/
           hdiutil create -volname "MindSafe" \
-            -srcfolder target/release/bundle/osx/MindSafe.app \
-            -ov -format UDZO mindsafe-macos.dmg
+            -srcfolder dmg \
+            -ov -format UDZO dist/mindsafe-macos.dmg
 
       # ---------------- Clean Cache for Windows ----------------
       - name: Clean
@@ -152,15 +154,24 @@ jobs:
           powershell Compress-Archive -Path dist\${{ matrix.binary_name }} -DestinationPath dist\${{ matrix.artifact_name }}.zip
 
       # ---------------- SHA256 Checksums ----------------
+      # - name: Generate SHA256
+      #   shell: bash
+      #   run: |
+      #     cd dist
+      #     for file in *; do
+      #       if [ -f "$file" ]; then
+      #         if [ "$RUNNER_OS" = "Windows" ]; then
+      #           certutil -hashfile "$file" SHA256 | grep -E "^[0-9a-fA-F]{64}" >> SHA256SUMS.txt
+      #         else
+      #           shasum -a 256 "$file" >> SHA256SUMS.txt
+      #         fi
+      #       fi
+      #     done
       - name: Generate SHA256
+        shell: bash
         run: |
           cd dist
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            certutil -hashfile * SHA256 > SHA256SUMS.txt
-          else
-            shasum -a 256 * > SHA256SUMS.txt
-          fi
-        shell: bash
+          sha256sum * > SHA256SUMS.txt
 
       # ---------------- Upload Everything ----------------
       - name: Upload to GitHub Release
