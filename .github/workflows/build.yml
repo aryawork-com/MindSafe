@@ -84,7 +84,13 @@ jobs:
 
       - name: Build macOS (aarch64)
         if: runner.os == 'macOS'
-        run: cargo build --release --target aarch64-apple-darwin
+        run:
+          cargo build --release --target aarch64-apple-darwin
+
+          # ---------------- Create dist folder ----------------
+      - name: Prepare dist folder
+        run: mkdir -p dist
+        shell: bash
 
       # Create universal binary
       - name: Create Universal Binary
@@ -99,7 +105,7 @@ jobs:
       - name: Create DMG
         if: runner.os == 'macOS'
         run: |
-          mkdir dmg
+          mkdir -p dmg
           cp target/universal/mindsafe dmg/
           hdiutil create -volname "MindSafe" \
             -srcfolder dmg \
@@ -124,11 +130,6 @@ jobs:
         if: runner.os != 'macOS'
         run: |
           cargo build --release --target ${{ matrix.target }} -j 2 --config profile.release.lto=false
-
-      # ---------------- Create dist folder ----------------
-      - name: Prepare dist folder
-        run: mkdir -p dist
-        shell: bash
 
       # ---------------- Package macOS ----------------
       - name: Package macOS
