@@ -2,3 +2,6 @@
 title = "MindSafe Docs"
 authors = ["parasgupta"]
 language = "en"
+
+[output.html]
+site-url = "/mindsafe/"
