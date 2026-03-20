@@ -9,33 +9,34 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # macOS Intel
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact_name: mindsafe-macos-intel
+          # ---------- macOS Universal ----------
+          - os: macos-latest
+            artifact_name: mindsafe-macos-universal
             binary_name: mindsafe
 
-          # macOS Apple Silicon
-          - os: macos-14
-            target: aarch64-apple-darwin
-            artifact_name: mindsafe-macos-apple-silicon
-            binary_name: mindsafe
-
-          # Windows
+          # ---------- Windows ----------
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: mindsafe-windows
             binary_name: mindsafe.exe
 
-          # Linux
+          # ---------- Linux ----------
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact_name: mindsafe-linux
@@ -47,39 +48,135 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
+      # ---------------- macOS Install Cargo Bundle ----------------
+      - name: Install cargo-bundle
+        if: runner.os == 'macOS'
+        run: cargo install cargo-bundle
+
+      # ---------------- Linux dependencies ----------------
       - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-22.04'
+        if: runner.os == 'Linux'
         run: |
           sudo apt update
           sudo apt install -y \
             libgtk-3-dev \
             libssl-dev \
-            libsqlite3-dev
+            libsqlite3-dev \
+            pkg-config
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
+      # ---------------- macOS universal setup ----------------
+      - name: Add macOS targets
+        if: runner.os == 'macOS'
         run: |
-          mkdir dist
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
+
+      # ---------------- Build macOS universal ----------------
+      # - name: Build macOS universal
+      #   if: runner.os == 'macOS'
+      #   run: cargo bundle --release
+
+      # Build both architectures
+      - name: Build macOS (x86_64)
+        if: runner.os == 'macOS'
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Build macOS (aarch64)
+        if: runner.os == 'macOS'
+        run:
+          cargo build --release --target aarch64-apple-darwin
+
+          # ---------------- Create dist folder ----------------
+      - name: Prepare dist folder
+        run: mkdir -p dist
+        shell: bash
+
+      # Create universal binary
+      - name: Create Universal Binary
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p target/universal
+          lipo -create \
+            target/x86_64-apple-darwin/release/mindsafe \
+            target/aarch64-apple-darwin/release/mindsafe \
+            -output target/universal/mindsafe
+
+      - name: Create DMG
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dmg
+          cp target/universal/mindsafe dmg/
+          hdiutil create -volname "MindSafe" \
+            -srcfolder dmg \
+            -ov -format UDZO dist/mindsafe-macos.dmg
+
+      # ---------------- Clean Cache for Windows ----------------
+      - name: Clean
+        if: runner.os == 'Windows'
+        run: cargo clean
+
+      # - name: Configure OpenSSL (Windows)
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #     echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_NO_VENDOR=0" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_DIR=" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_LIB_DIR=" >> $env:GITHUB_ENV
+      #     echo "OPENSSL_INCLUDE_DIR=" >> $env:GITHUB_ENV
+
+      # ---------------- Build Windows/Linux ----------------
+      - name: Build (Windows/Linux)
+        if: runner.os != 'macOS'
+        run: |
+          cargo build --release --target ${{ matrix.target }} -j 2 --config profile.release.lto=false
+
+      # ---------------- Package macOS ----------------
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: |
+          cp target/universal/mindsafe dist/
+          cd dist
+          tar -czf ${{ matrix.artifact_name }}.tar.gz mindsafe
+
+      # ---------------- Package Linux ----------------
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} dist/
           cd dist
           tar -czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.binary_name }}
 
-      - name: Prepare artifact (Windows)
+      # ---------------- Package Windows ----------------
+      - name: Package Windows
         if: runner.os == 'Windows'
         run: |
-          mkdir dist
           copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} dist\
           powershell Compress-Archive -Path dist\${{ matrix.binary_name }} -DestinationPath dist\${{ matrix.artifact_name }}.zip
 
-      - name: Upload artifact
+      # ---------------- SHA256 Checksums ----------------
+      # - name: Generate SHA256
+      #   shell: bash
+      #   run: |
+      #     cd dist
+      #     for file in *; do
+      #       if [ -f "$file" ]; then
+      #         if [ "$RUNNER_OS" = "Windows" ]; then
+      #           certutil -hashfile "$file" SHA256 | grep -E "^[0-9a-fA-F]{64}" >> SHA256SUMS.txt
+      #         else
+      #           shasum -a 256 "$file" >> SHA256SUMS.txt
+      #         fi
+      #       fi
+      #     done
+      - name: Generate SHA256
+        shell: bash
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+
+      # ---------------- Upload Everything ----------------
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.tar.gz
-            dist/*.zip
+            dist/*

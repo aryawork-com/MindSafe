@@ -33,7 +33,9 @@ impl Tag {
         ) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error inserting tags to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error inserting tags to db: {e}");
+                }
             }
         }
     }
@@ -47,7 +49,9 @@ impl Tag {
                 self.updated_at = Utc::now();
             }
             Err(e) => {
-                println!("Error updating tag to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error updating tag to db: {e}");
+                }
             }
         }
     }
@@ -61,7 +65,9 @@ impl Tag {
                 self.updated_at = Utc::now();
             }
             Err(e) => {
-                println!("Error updating name in tags to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error updating name in tags to db: {e}");
+                }
             }
         }
     }
@@ -75,7 +81,9 @@ impl Tag {
                 self.updated_at = Utc::now();
             }
             Err(e) => {
-                println!("Error updating color in tags to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error updating color in tags to db: {e}");
+                }
             }
         }
     }
@@ -86,7 +94,9 @@ impl Tag {
                 self.zeroize();
             }
             Err(e) => {
-                println!("Error deleting tags to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error deleting tags to db: {e}");
+                }
             }
         }
     }

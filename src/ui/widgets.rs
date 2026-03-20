@@ -3,29 +3,30 @@ use std::sync::Arc;
 
 // external libraries
 use egui::{
-    CentralPanel, Color32, ComboBox, Context, CursorIcon, Rangef, RichText, ScrollArea, SidePanel,
-    Stroke, TextEdit, TopBottomPanel, Ui, panel::Side, vec2,
+    CentralPanel, Color32, ComboBox, Context, CursorIcon, Frame, Margin, Rangef, RichText,
+    ScrollArea, SidePanel, Stroke, TextEdit, TopBottomPanel, Ui, panel::Side, vec2,
 };
 use egui_i18n::tr;
 use egui_material_icons::icons::{
-    ICON_CLOSE, ICON_CONTENT_COPY, ICON_DELETE, ICON_EDIT, ICON_FILE_DOWNLOAD, ICON_FILE_UPLOAD,
-    ICON_GPP_BAD, ICON_GPP_GOOD, ICON_LOGOUT, ICON_NOTE_ADD, ICON_SAVE, ICON_SETTINGS,
-    ICON_TROUBLESHOOT, ICON_UPDATE,
+    ICON_CLOSE, ICON_CONTENT_COPY, ICON_DELETE, ICON_EDIT, ICON_FILE_DOWNLOAD, ICON_GPP_BAD,
+    ICON_GPP_GOOD, ICON_LOGOUT, ICON_NOTE_ADD, ICON_SAVE, ICON_SETTINGS, ICON_TROUBLESHOOT,
+    ICON_UPDATE,
 };
 
 // Internal modules usage
 use crate::{
     MindSafeApp,
     constants::HELP_TEXT,
-    layouter,
     modals::Modal,
     models::{config::SortingScheme, note::Note},
     services::{
         notes::NoteService,
         tabs::{Tab, TabsController},
     },
+    ui::formatter,
 };
 
+// Top bar having Tabs and Top Buttons
 pub(crate) fn create_top_bar(app: &mut MindSafeApp, ctx: &Context) {
     TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.vertical(|ui| {
@@ -39,9 +40,14 @@ pub(crate) fn create_top_bar(app: &mut MindSafeApp, ctx: &Context) {
                         let mut to_close: Option<usize> = None;
 
                         let tab_count = app.tabs_controller.tabs.len();
-                        for i in 0..tab_count {
-                            if tab_tile(i, &mut app.tabs_controller, ui) {
-                                to_close = Some(i);
+                        if tab_count == 0 {
+                            // Ensure minimum space when no tabs exist
+                            ui.allocate_space(egui::vec2(5.0, 30.0));
+                        } else {
+                            for i in 0..tab_count {
+                                if tab_tile(i, &mut app.tabs_controller, ui) {
+                                    to_close = Some(i);
+                                }
                             }
                         }
 
@@ -59,6 +65,8 @@ pub(crate) fn create_top_bar(app: &mut MindSafeApp, ctx: &Context) {
         });
     });
 }
+
+// Side Panel having Logo, Notes, Bottom Buttons
 pub(crate) fn create_side_panel(app: &mut MindSafeApp, ctx: &Context) {
     SidePanel::new(Side::Left, "side-panel-main")
         .resizable(true)
@@ -72,7 +80,7 @@ pub(crate) fn create_side_panel(app: &mut MindSafeApp, ctx: &Context) {
                     // Adding for proper alignedment and look
                     ui.add_space(5.0);
                     ui.add(
-                        egui::Image::new(egui::include_image!("../assets/icon.svg"))
+                        egui::Image::new(egui::include_image!("../../assets/icon.svg"))
                             .fit_to_exact_size(vec2(25.0, 25.0)),
                     );
                 });
@@ -126,8 +134,46 @@ pub(crate) fn create_side_panel(app: &mut MindSafeApp, ctx: &Context) {
             ui.add_space(10.0);
             ui.separator();
 
+            // ---------- Workspace Details ---------------
+
+            Frame::new()
+                .stroke(Stroke::new(1.0, Color32::DARK_GRAY)) // border
+                .inner_margin(Margin::same(6)) // padding inside border
+                .corner_radius(5.0)
+                // .fill(Color32::from_gray(15))
+                .show(ui, |ui| {
+                    // ---------- Workspace Details ---------------
+                    ui.add_space(5.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(2.0);
+
+                        ui.colored_label(Color32::LIGHT_GRAY, app.workspace.clone());
+
+                        ui.add_space(3.0);
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Delete Button
+                            if ui
+                                .button(RichText::new(ICON_DELETE).color(Color32::LIGHT_RED))
+                                .clicked()
+                            {
+                                app.current_modal = Modal::DeleteWorkspace;
+                                app.show_modal = true;
+                            }
+
+                            // Edit Button
+                            if ui.button(RichText::new(ICON_EDIT)).clicked() {
+                                app.current_modal = Modal::UpdateWorkspace;
+                                app.show_modal = true;
+                            }
+                        });
+                    });
+                    ui.add_space(2.0);
+                });
+
+            ui.add_space(10.0);
+
             // ---------- Notes Sorting & Search ----------
-            // TODO
             ComboBox::from_id_salt("sorting_dropdown")
                 .selected_text(app.config.sorting.name())
                 .width(ui.available_width())
@@ -229,6 +275,7 @@ pub(crate) fn create_side_panel(app: &mut MindSafeApp, ctx: &Context) {
                         .clicked()
                     {
                         // Handle exit
+                        app.logout();
                     }
                     ui.add_space(10.0);
                 });
@@ -263,6 +310,7 @@ pub(crate) fn create_editor_panel(app: &mut MindSafeApp, ctx: &Context) {
 
         &mut active_tab.note.text
     } else {
+        app.text = HELP_TEXT.into();
         &mut app.text
     };
 
@@ -276,7 +324,7 @@ pub(crate) fn create_editor_panel(app: &mut MindSafeApp, ctx: &Context) {
                                         buf: &dyn egui::TextBuffer,
                                         wrap_width: f32|
                   -> Arc<egui::Galley> {
-                let mut job = layouter::layouter(buf.as_str(), highlight_enabled);
+                let mut job = formatter::md_formatter(buf.as_str(), highlight_enabled);
                 job.wrap.max_width = wrap_width;
                 ui.fonts_mut(|f| f.layout_job(job))
             };
@@ -303,42 +351,18 @@ pub(crate) fn create_top_button_bar(app: &mut MindSafeApp, ui: &mut Ui) {
                 app.show_modal = true;
             }
             if ui.button(format!("{ICON_SAVE}  Save")).clicked() {
-                let active_note_id = app.tabs_controller.active_note_tab_id;
-
-                // First get index instead of mutable reference
-                let tab_index = app
-                    .tabs_controller
-                    .tabs
-                    .iter()
-                    .position(|tab| tab.note.id == active_note_id);
-
-                if let Some(index) = tab_index {
-                    // Now borrow only the note mutably
-                    let note: &mut Note = &mut app.tabs_controller.tabs[index].note.clone();
-
-                    match NoteService::save_note_hash_blob(
-                        &app.database_service,
-                        &app.file_key,
-                        note,
-                    ) {
-                        Ok(_) => {
-                            app.toasts.success("Saved!");
-                        }
-                        Err(e) => {
-                            app.toasts.error(format!("Failed to save: {e}!"));
-                        }
-                    }
-                }
+                app.save_note_text();
             }
             if ui
                 .button(format!("{ICON_FILE_DOWNLOAD}  Import",))
                 .clicked()
             {
+                app.current_modal = Modal::ImportNote;
+                app.show_modal = true;
                 // app.save_as();
             }
-            if ui.button(format!("{ICON_FILE_UPLOAD}  Export",)).clicked() {
-                // app.save_as();
-            }
+            // if ui.button(format!("{ICON_FILE_UPLOAD}  Export",)).clicked() {
+            // }
 
             ui.separator();
 
@@ -588,7 +612,9 @@ pub(crate) fn tab_tile(tab_index: usize, tabs: &mut TabsController, ui: &mut egu
                 }
 
                 if ui.button(ICON_CLOSE).clicked() {
-                    println!("Tab Index: {tab_index}");
+                    if cfg!(debug_assertions) {
+                        println!("Tab Index: {tab_index}");
+                    }
                     button_clicked = true;
                 }
             });

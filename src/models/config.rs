@@ -399,18 +399,18 @@ impl Default for Config {
 
 impl Zeroize for Config {
     fn zeroize(&mut self) {
-        self.id.zeroize();
+        self.id = 1;
         self.selected_language = Language::English;
         self.main_directory = PathBuf::new();
         self.backup_directory = PathBuf::new();
-        self.safe_copy.zeroize();
-        self.syntax_highlight.zeroize();
-        self.auto_save_duration.zeroize();
-        self.auto_lock_duration.zeroize();
-        self.last_opened_note = None;
+        self.safe_copy = true;
+        self.syntax_highlight = true;
         self.sorting = SortingScheme::default();
-        self.created_at = DateTime::<Utc>::from(std::time::UNIX_EPOCH);
-        self.updated_at = DateTime::<Utc>::from(std::time::UNIX_EPOCH);
+        self.auto_save_duration = 5;
+        self.auto_lock_duration = 30;
+        self.last_opened_note = None;
+        self.created_at = Utc::now();
+        self.updated_at = Utc::now();
     }
 }
 

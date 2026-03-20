@@ -28,17 +28,15 @@
     > Re-encypts all data (DB, Notes, config) with new key */
     - [ ] Core Engine
 19. Import (*Continued*)
-    - [ ] Import all data from mindsafe-blob
+    - [ ] Import all data from backups
 20. Export
     - [ ] Export Note as MD
     - [ ] Export Note as PDF
     - [ ] Export Notes with encryption
     - [ ] Export all notes as MD or PDF
-    - [ ] Export all data as mindsafe-blob
-21. Search via Name
+21. Search via Note Name
     - [ ] Core Engine
-        > Content search not feasible as all data is only decrypted when the note is accessed (for safety)
-        > Embeddings maybe one-way as of now, but they can be used to deduce the overall theme and topic, thus, not feasible
+        > Content search not feasible as all data is only decrypted when the note is accessed (for safety) even embeddings can be used to deduce the overall theme and topic, thus, not feasible
 22. Code Clean
     - [ ] Remove Clutter
     - [ ] Clean Functions
@@ -120,11 +118,23 @@
     - [ ] Authentication
     - [ ] Configuration
     - [ ] CRUD
-11. Safe Copy
+11. Import
+    - [x] Import Notes from MD
+    - [x] Import Notes from TXT
+12. Workspace Feature
+    - [x] Create Default Workspace
+    - [x] Create New Workspace
+    - [x] Modify Name of Workspace
+    - [x] Delete Workspace
+13. Notebook Feature
+    - [ ] Create Default Notebook
+    - [ ] Create New Notebook
+    - [ ] Modify Name of Notebook
+    - [ ] Delete Notebook
+14. Safe Copy
     - [ ] Core Engine
     - [ ] Safe Paste
-12. Update
-    - [ ] Online via GitHub, Website
-13. Import
-    - [ ] Import Notes from MD
-    - [ ] Import Notes from TXT
+15. Update
+    - [ ] Check update via GitHub Releases API
+16. Backup
+    - [ ] Backup DB & State to backup folder at intervals

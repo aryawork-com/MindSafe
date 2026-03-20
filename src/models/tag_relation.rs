@@ -34,7 +34,9 @@ impl TagRelation {
         ) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error inserting tag_relations to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error inserting tag_relations to db: {e}");
+                }
             }
         }
     }
@@ -48,7 +50,9 @@ impl TagRelation {
                 self.zeroize();
             }
             Err(e) => {
-                println!("Error deleting tag_relations to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error deleting tag_relations to db: {e}");
+                }
             }
         }
     }

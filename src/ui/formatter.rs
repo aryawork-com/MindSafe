@@ -33,7 +33,7 @@ fn md_color(kind: &str) -> Color32 {
     }
 }
 
-pub fn layouter(text: &str, syntax_highlight: bool) -> LayoutJob {
+pub fn md_formatter(text: &str, syntax_highlight: bool) -> LayoutJob {
     let mut job = LayoutJob::default();
     if !syntax_highlight {
         job.append(text, 0.0, TextFormat::default());
