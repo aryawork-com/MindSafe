@@ -1,3 +1,4 @@
+use ::std::{fs, path::Path};
 use std::{error::Error, fmt, fs::create_dir_all, path::PathBuf};
 
 use hex::encode;
@@ -29,6 +30,7 @@ pub struct DatabaseMigration {
 pub enum MigrationError {
     DatabaseError(rusqlite::Error),
     MigrationFailed(String),
+    IoError(String),
 }
 
 impl fmt::Display for MigrationError {
@@ -36,6 +38,7 @@ impl fmt::Display for MigrationError {
         match self {
             MigrationError::DatabaseError(err) => write!(f, "Database error: {err}"),
             MigrationError::MigrationFailed(msg) => write!(f, "Migration failed: {msg}",),
+            MigrationError::IoError(msg) => write!(f, "Io Operation failed: {msg}",),
         }
     }
 }
@@ -53,10 +56,10 @@ pub struct DatabaseService {
 }
 
 impl DatabaseService {
-    fn get_db_path() -> Result<PathBuf, MigrationError> {
+    fn get_db_path(db_name: String) -> Result<PathBuf, MigrationError> {
         // Saving in same folder if debug mode is turned on
         if cfg!(debug_assertions) {
-            let dir = PathBuf::from("./mindsafe.db");
+            let dir = PathBuf::from(format!("./{}.db", db_name));
             Ok(dir)
         } else {
             match dirs::data_local_dir() {
@@ -65,18 +68,25 @@ impl DatabaseService {
                     match create_dir_all(&dir) {
                         Ok(_) => {
                             return Err(MigrationError::DatabaseError(
-                                rusqlite::Error::InvalidPath(PathBuf::from("./mindsafe.db")),
+                                rusqlite::Error::InvalidPath(PathBuf::from(format!(
+                                    "./{}.db",
+                                    db_name
+                                ))),
                             ));
                         }
                         Err(e) => {
-                            println!("Error while creating local dirs: {e}");
+                            if cfg!(debug_assertions) {
+                                println!("Error while creating local dirs: {e}");
+                            }
                         }
                     }
-                    dir.push("mindsafe.db");
+                    dir.push(format!("{}.db", db_name));
                     Ok(dir)
                 }
                 None => {
-                    println!("Error while fetching local dir, path not found");
+                    if cfg!(debug_assertions) {
+                        println!("Error while fetching local dir, path not found");
+                    }
                     Err(MigrationError::DatabaseError(rusqlite::Error::InvalidPath(
                         PathBuf::from("./mindsafe.db"),
                     )))
@@ -86,9 +96,13 @@ impl DatabaseService {
     }
 
     /// Initialize a new DatabaseService with in-memory database
-    pub fn new(db_key: &[u8]) -> Result<Self, MigrationError> {
-        let path = DatabaseService::get_db_path()?;
-        let conn = Connection::open(path)?;
+    pub fn new(db_key: &[u8], db_name: String) -> Result<Self, MigrationError> {
+        let path = DatabaseService::get_db_path(db_name)?;
+        if cfg!(debug_assertions) {
+            println!("Database Path: {path:?}");
+        }
+
+        let conn: Connection = Connection::open(path)?;
 
         if cfg!(debug_assertions) {
             // Use this for DEBUG MODE
@@ -117,6 +131,25 @@ impl DatabaseService {
         Ok(DatabaseService { conn })
     }
 
+    /// Delete file
+    pub fn delete_db(db_name: String) -> Result<(), MigrationError> {
+        let path = DatabaseService::get_db_path(db_name)?;
+
+        if cfg!(debug_assertions) {
+            println!("Database Path: {path:?}");
+        }
+
+        if Path::new(&path).exists() {
+            fs::remove_file(&path).map_err(|e| {
+                if cfg!(debug_assertions) {
+                    println!("Database could not be deleted due to: {path:?}: {e}");
+                };
+                MigrationError::IoError(e.to_string())
+            })?;
+        }
+
+        Ok(())
+    }
     /// Initialize database and run migrations
     pub fn init(&mut self, migrations: &[Migration]) -> Result<(), MigrationError> {
         self.create_migrations_table()?;
@@ -261,18 +294,22 @@ impl DatabaseService {
             match self.conn.execute(migration.query, []) {
                 Ok(_) => {
                     self.record_successful_migration(migration)?;
-                    println!(
-                        "Migration with Name: {}, Serial Id: {}, completed successfully! Existing: {:?}",
-                        migration.name,
-                        migration.serial_id,
-                        existing.is_some()
-                    );
+                    if cfg!(debug_assertions) {
+                        println!(
+                            "Migration with Name: {}, Serial Id: {}, completed successfully! Existing: {:?}",
+                            migration.name,
+                            migration.serial_id,
+                            existing.is_some()
+                        );
+                    }
                 }
                 Err(err) => {
-                    eprintln!(
-                        "Migration failed: {} - {} | Error: {}",
-                        migration.serial_id, migration.name, err
-                    );
+                    if cfg!(debug_assertions) {
+                        eprintln!(
+                            "Migration failed: {} - {} | Error: {}",
+                            migration.serial_id, migration.name, err
+                        );
+                    }
                     self.record_failed_migration(migration)?;
                 }
             }

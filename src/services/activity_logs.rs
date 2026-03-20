@@ -1,5 +1,5 @@
-use ::rusqlite::Connection;
-use ::uuid::Uuid;
+use rusqlite::Connection;
+use uuid::Uuid;
 
 use crate::models::{activities::Activity, activity_logs::ActivityLog};
 

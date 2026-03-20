@@ -72,6 +72,24 @@ impl Note {
             }
         }
     }
+    pub fn insert_complete_note(&self, conn: &Connection) -> bool {
+        // NOTE: created_at & updated_at will be set as default by DB
+        match conn.execute(
+            "INSERT INTO notes (id, title, blob, sha_hash) VALUES (?1, ?2, ?3, ?4);",
+            (
+                &self.id.to_string(),
+                &self.title,
+                &self.blob,
+                &self.sha_hash,
+            ),
+        ) {
+            Ok(_) => true,
+            Err(e) => {
+                println!("Error inserting complete note to db: {e}");
+                false
+            }
+        }
+    }
     pub fn duplicate(&self, conn: &Connection) -> bool {
         // NOTE: created_at & updated_at will be set as default by DB
         match conn.execute(
@@ -166,7 +184,9 @@ impl Note {
                 true
             }
             Err(e) => {
-                println!("Error deleting notes to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error deleting notes to db: {e}");
+                }
                 false
             }
         }
@@ -175,7 +195,9 @@ impl Note {
         match conn.execute("DELETE FROM notes WHERE id = ?1;", (note_id.to_string(),)) {
             Ok(_) => true,
             Err(e) => {
-                println!("Error deleting notes to db: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Error deleting notes to db: {e}");
+                }
                 false
             }
         }
@@ -184,7 +206,7 @@ impl Note {
     pub fn make_introduction() -> Self {
         Self {
             id: Uuid::new_v4(),
-            title: String::new(),
+            title: "Introduction".to_string(),
             blob: String::new(),
             sha_hash: String::new(),
             text: HELP_TEXT.into(),

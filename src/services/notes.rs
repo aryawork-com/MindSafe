@@ -59,13 +59,17 @@ impl NoteService {
                     match EncryptionService::decrypt_with_key(&app.file_key, &note.id, &blob) {
                         Ok(text) => Ok(String::from_utf8_lossy(&text).to_string()),
                         Err(e) => {
-                            println!("Failed to decrypt the blob: {e}");
+                            if cfg!(debug_assertions) {
+                                println!("Failed to decrypt the blob: {e}");
+                            }
                             Err(e)
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Failed to deserialize the blob: {e}");
+                    if cfg!(debug_assertions) {
+                        println!("Failed to deserialize the blob: {e}");
+                    }
                     Err(e)
                 }
             }
@@ -85,12 +89,16 @@ impl NoteService {
             Ok(blob) => match EncryptionService::decrypt_with_key(file_key, &note.id, &blob) {
                 Ok(text) => Ok(String::from_utf8_lossy(&text).to_string()),
                 Err(e) => {
-                    println!("Failed to decrypt the blob: {e}");
+                    if cfg!(debug_assertions) {
+                        println!("Failed to decrypt the blob: {e}");
+                    }
                     Err(e)
                 }
             },
             Err(e) => {
-                println!("Failed to deserialize the blob: {e}");
+                if cfg!(debug_assertions) {
+                    println!("Failed to deserialize the blob: {e}");
+                }
                 Err(e)
             }
         }
@@ -98,9 +106,11 @@ impl NoteService {
 
     // Create sha_hash and save encrypted blob
     pub(crate) fn save_note_hash_blob(
+        workspace_id: &str,
         database_service: &Option<DatabaseService>,
         file_key: &[u8],
         note: &mut Note,
+        complete_note: bool,
     ) -> Result<bool, CryptoError> {
         if let Some(database_service) = database_service {
             let new_sha = HashService::generate_hash(&note.text); // Regenerating hash, for safety
@@ -111,25 +121,40 @@ impl NoteService {
 
             note.sha_hash = HashService::generate_hash(&note.text); // Regenerating hash, for safety
 
-            match EncryptionService::encrypt_with_key(file_key, &note.id, note.text.as_ref()) {
+            match EncryptionService::encrypt_with_key(
+                workspace_id,
+                file_key,
+                &note.id,
+                note.text.as_ref(),
+            ) {
                 Ok(blob) => match blob.serialize() {
                     Ok(serialized_text) => {
                         note.blob = serialized_text;
                         let conn = database_service.get_connection();
-                        note.update_blob(conn); // saves both blob and hash
-                        println!("Saved Blob, on id: {}", note.id);
+                        if complete_note {
+                            note.insert_complete_note(conn); // insert complete note
+                        } else {
+                            note.update_blob(conn); // saves both blob and hash
+                        }
+                        if cfg!(debug_assertions) {
+                            println!("Saved Blob, on id: {}", note.id);
+                        }
 
                         let _ = note.save_history(conn);
 
                         Ok(true)
                     }
                     Err(e) => {
-                        println!("Failed to serialize the encrypted blob: {e}");
+                        if cfg!(debug_assertions) {
+                            println!("Failed to serialize the encrypted blob: {e}");
+                        }
                         Err(e)
                     }
                 },
                 Err(e) => {
-                    println!("Failed to encrypt the text: {e}");
+                    if cfg!(debug_assertions) {
+                        println!("Failed to encrypt the text: {e}");
+                    }
                     Err(e)
                 }
             }

@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 pub struct ActivityLog {
     pub id: Uuid,
     pub activity_id: Uuid,
+    /// this is login activity log id
     pub session_id: Uuid,
     pub item_id: Option<Uuid>,
     pub details: Option<String>,

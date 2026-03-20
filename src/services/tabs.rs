@@ -3,7 +3,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::models::note::Note;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Tab {
     pub name: String,
     /// will act as sorting value
@@ -29,16 +29,6 @@ impl Zeroize for Tab {
     }
 }
 
-impl Default for Tab {
-    fn default() -> Self {
-        Self {
-            name: "Introduction".to_string(),
-            index: 0,
-            note: Note::make_introduction(),
-        }
-    }
-}
-
 impl ZeroizeOnDrop for Tab {}
 
 #[derive(Debug)]
@@ -59,7 +49,7 @@ impl ZeroizeOnDrop for TabsController {}
 impl Default for TabsController {
     fn default() -> Self {
         Self {
-            tabs: vec![Tab::default()],
+            tabs: vec![],
             active_note_tab_id: Uuid::nil(),
         }
     }

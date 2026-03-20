@@ -1,5 +1,3 @@
-/// I have added instruction in a very simplistics form so that even beginners can understand.
-///
 /// Command to reloads application in each change - `cargo watch -c -w src -x run`
 /// Command to build application - `cargo bundle --release`
 /// Get instructions to install [cargo watch](https://crates.io/crates/cargo-watch)
@@ -18,22 +16,23 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 // Module Declarations
 pub mod constants;
 pub mod i18n;
-pub mod layouter;
-pub mod modals;
 pub mod models;
-pub mod pages;
 pub mod services;
-pub mod widgets;
+pub mod shortcuts;
+pub mod ui;
 
 // Internal modules usage
 use crate::{
     constants::HELP_TEXT,
-    modals::{Modal, PasswordChange},
     models::{config::Config, note::Note},
-    pages::{AppErrors, Page},
     services::{
         authentication::AuthenticationService, database::DatabaseService, notes::NoteService,
         tabs::TabsController,
+    },
+    ui::{
+        modals::{self, Modal, PasswordChange},
+        pages::{self, AppErrors, Page},
+        widgets,
     },
 };
 
@@ -41,16 +40,20 @@ use crate::{
 ///
 /// NOTE: Do not put SENSITIVE vars here
 struct MindSafeApp {
+    confirm_text: String,
     password: String,
     db_key: Vec<u8>,
     file_key: Vec<u8>,
     session_id: Uuid,
+    workspace_id: String,
+    workspace: String,
     hide_password: bool,
     current_page: Page,
     database_service: Option<DatabaseService>,
     tabs_controller: TabsController,
     config: Config,
     has_registered: bool,
+    create_workspace: bool,
     text: String,
     toasts: Toasts,
     new_note: Note,
@@ -65,13 +68,17 @@ struct MindSafeApp {
 
 impl Zeroize for MindSafeApp {
     fn zeroize(&mut self) {
+        self.confirm_text.zeroize();
         self.password.zeroize();
         self.db_key.zeroize();
         self.file_key.zeroize();
+        self.workspace = String::from("Select Workspace");
+        self.workspace_id = String::new();
         self.database_service = None;
         self.has_registered.zeroize();
         self.config.zeroize();
-        self.hide_password.zeroize();
+        self.hide_password = true;
+        self.create_workspace = false;
         self.current_page = Page::Register;
         self.session_id = Uuid::nil();
         self.text.zeroize();
@@ -93,8 +100,11 @@ impl ZeroizeOnDrop for MindSafeApp {}
 impl Default for MindSafeApp {
     fn default() -> Self {
         Self {
-            // password: String::new(),
-            password: String::from("pErfect@1994#"),
+            confirm_text: String::new(),
+            password: match cfg!(debug_assertions) {
+                true => String::from("pAssword@2026#"),
+                false => String::new(),
+            },
             db_key: Vec::new(),
             file_key: Vec::new(),
             session_id: Uuid::new_v4(),
@@ -106,12 +116,15 @@ impl Default for MindSafeApp {
             tabs_controller: TabsController::default(),
             all_notes: Vec::new(),
             current_page: Page::Register,
+            workspace_id: String::new(),
+            workspace: String::from("Default Workspace"),
             text: String::from(HELP_TEXT),
             toasts: Toasts::default()
                 .with_anchor(Anchor::BottomRight)
                 // Added margin in toasts for better viewing experience
                 .with_margin(Vec2::new(20.0, 20.0)),
             show_modal: false,
+            create_workspace: false,
             current_modal: Modal::Settings,
             last_auto_saved: Instant::now(),
             changed_password_data: PasswordChange::default(),
@@ -232,6 +245,14 @@ impl MindSafeApp {
         modals::delete_note_modal(self, ctx);
     }
 
+    fn delete_workspace_modal(&mut self, ctx: &Context) {
+        modals::delete_workspace_modal(self, ctx);
+    }
+
+    fn update_workspace_modal(&mut self, ctx: &Context) {
+        modals::update_workspace_modal(self, ctx);
+    }
+
     fn change_key_modal(&mut self, ctx: &Context) {
         modals::change_key_modal(self, ctx);
     }
@@ -242,6 +263,10 @@ impl MindSafeApp {
 
     fn update_note_modal(&mut self, ctx: &Context) {
         modals::update_note_modal(self, ctx);
+    }
+
+    fn import_note_modal(&mut self, ctx: &Context) {
+        modals::import_modal(self, ctx);
     }
 
     // ---------- Page Functions
@@ -270,9 +295,11 @@ impl MindSafeApp {
         for tab in tabs.iter_mut() {
             if !tab.note.text.is_empty() {
                 match NoteService::save_note_hash_blob(
+                    &self.workspace_id,
                     &self.database_service,
                     &self.file_key,
                     &mut tab.note,
+                    false,
                 ) {
                     Ok(_) => {
                         saved = true;
@@ -289,6 +316,43 @@ impl MindSafeApp {
             toasts.success(format!("{notes_len} notes auto saved!"));
         }
     }
+
+    // helper functions
+    pub fn save_note_text(&mut self) {
+        let active_note_id = self.tabs_controller.active_note_tab_id;
+
+        // First get index instead of mutable reference
+        let tab_index = self
+            .tabs_controller
+            .tabs
+            .iter()
+            .position(|tab| tab.note.id == active_note_id);
+
+        if let Some(index) = tab_index {
+            // Now borrow only the note mutably
+            let note: &mut Note = &mut self.tabs_controller.tabs[index].note.clone();
+
+            match NoteService::save_note_hash_blob(
+                &self.workspace_id,
+                &self.database_service,
+                &self.file_key,
+                note,
+                false,
+            ) {
+                Ok(_) => {
+                    self.toasts.success("Saved!");
+                }
+                Err(e) => {
+                    self.toasts.error(format!("Failed to save: {e}!"));
+                }
+            }
+        }
+    }
+
+    fn logout(&mut self) {
+        self.zeroize();
+        self.current_page = Page::Login;
+    }
 }
 
 /// Update function to change application frame - "equivalent" to a router
@@ -297,7 +361,7 @@ impl eframe::App for MindSafeApp {
         let now: Instant = Instant::now();
         let interval = std::time::Duration::from_secs((self.config.auto_save_duration * 60) as u64);
 
-        if self.has_registered && self.current_page.is_register() {
+        if self.has_registered && self.current_page.is_register() && !self.create_workspace {
             self.current_page = Page::Login;
         }
 
@@ -318,6 +382,9 @@ impl eframe::App for MindSafeApp {
                 Modal::CreateNote => self.new_note_modal(ctx),
                 Modal::DeleteNote => self.delete_note_modal(ctx),
                 Modal::UpdateNote => self.update_note_modal(ctx),
+                Modal::ImportNote => self.import_note_modal(ctx),
+                Modal::DeleteWorkspace => self.delete_workspace_modal(ctx),
+                Modal::UpdateWorkspace => self.update_workspace_modal(ctx),
             }
         }
 

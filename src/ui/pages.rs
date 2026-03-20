@@ -5,13 +5,13 @@ use egui::{
 };
 use egui_i18n::tr;
 use egui_material_icons::icons::{
-    ICON_LOGIN, ICON_PRIORITY_HIGH, ICON_VISIBILITY, ICON_VISIBILITY_OFF, ICON_ZOOM_IN,
+    ICON_ADD, ICON_LOGIN, ICON_PRIORITY_HIGH, ICON_VISIBILITY, ICON_VISIBILITY_OFF, ICON_ZOOM_IN,
     ICON_ZOOM_OUT,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // Internal modules usage
-use crate::{MindSafeApp, i18n, services::authentication::AuthenticationService};
+use crate::{MindSafeApp, i18n, services::authentication::AuthenticationService, shortcuts};
 
 /// Page enum - "equivalent" to Routes Definition
 #[derive(Debug, PartialEq, Eq)]
@@ -52,7 +52,12 @@ pub(crate) fn register_page(app: &mut MindSafeApp, ctx: &Context) {
 
             mind_safe_logo(ui);
 
-            ui.colored_label(Color32::LIGHT_GRAY, tr!("welcome-text"));
+            ui.colored_label(Color32::LIGHT_YELLOW, "Open-Source & Secure Notes App");
+            if app.create_workspace {
+                ui.colored_label(Color32::LIGHT_GRAY, "Create New Workspace");
+            } else {
+                ui.colored_label(Color32::LIGHT_GRAY, tr!("welcome-text"));
+            }
             ui.add_space(60.0);
 
             i18n::language_dropdown(ui, &mut app.config.selected_language);
@@ -60,13 +65,15 @@ pub(crate) fn register_page(app: &mut MindSafeApp, ctx: &Context) {
 
             ui.columns_const(|[_col0, col1, col2, _col3]| {
                 col1.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                    ui.label("Workspace Name (Public)");
+                    ui.add_space(5.0);
                     ui.label(tr!("password"));
                     ui.colored_label(Color32::KHAKI, tr!("password-hint-1"));
                     ui.colored_label(Color32::KHAKI, tr!("password-hint-2"));
                     ui.colored_label(Color32::KHAKI, tr!("password-hint-3"));
                 });
                 col2.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                    password_input(ui, app)
+                    workspace_create_card(ui, app)
                 });
             });
 
@@ -76,7 +83,15 @@ pub(crate) fn register_page(app: &mut MindSafeApp, ctx: &Context) {
 
             ui.add_space(50.0);
 
-            if ui
+            if app.create_workspace {
+                if ui
+                    .button(format!("{ICON_ADD}  Create Workspace",))
+                    .clicked()
+                {
+                    AuthenticationService::save_password(app);
+                    app.create_workspace = false;
+                }
+            } else if ui
                 .button(format!("{ICON_LOGIN}  {}", tr!("register")))
                 .clicked()
             {
@@ -86,6 +101,19 @@ pub(crate) fn register_page(app: &mut MindSafeApp, ctx: &Context) {
             zoom_buttons(ui, ctx)
         });
     });
+}
+
+fn workspace_create_card(ui: &mut Ui, app: &mut MindSafeApp) {
+    ui.horizontal(|ui| {
+        ui.add(
+            TextEdit::singleline(&mut app.workspace)
+                .char_limit(50)
+                .hint_text("My Workspace"),
+        );
+    });
+
+    ui.add_space(5.0);
+    password_input(ui, app);
 }
 
 fn password_input(ui: &mut Ui, app: &mut MindSafeApp) {
@@ -114,7 +142,7 @@ fn password_input(ui: &mut Ui, app: &mut MindSafeApp) {
 
 fn mind_safe_logo(ui: &mut Ui) {
     ui.add(
-        egui::Image::new(egui::include_image!("../assets/icon.svg"))
+        egui::Image::new(egui::include_image!("../../assets/icon.svg"))
             .max_width(70.0)
             .corner_radius(10.0),
     );
@@ -217,6 +245,9 @@ pub(crate) fn login_page(app: &mut MindSafeApp, ctx: &Context) {
             i18n::language_dropdown(ui, &mut app.config.selected_language);
             ui.add_space(10.0);
 
+            AuthenticationService::workspace_dropdown(ui, app);
+            ui.add_space(10.0);
+
             ui.columns_const(|[_col0, col1, col2, _col3]| {
                 col1.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.label(tr!("password"));
@@ -237,14 +268,11 @@ pub(crate) fn login_page(app: &mut MindSafeApp, ctx: &Context) {
             }
 
             ui.add_space(50.0);
-            if ui.button(tr!("login")).clicked() {
-                app.errors.login = String::new();
-                AuthenticationService::verify_password(app);
-            }
-            if ctx.input_mut(|i| i.key_down(Key::Enter)) {
-                app.errors.login = String::new();
-                AuthenticationService::verify_password(app);
-            };
+            if ui.button(tr!("login")).clicked() || ctx.input_mut(|i| i.key_down(Key::Enter)) {
+                    app.errors.login = String::new();
+                    AuthenticationService::verify_password(app);
+                }
+
             zoom_buttons(ui, ctx)
         });
     });
@@ -260,4 +288,7 @@ pub(crate) fn editor_page(app: &mut MindSafeApp, ctx: &Context) {
 
     // Editor Section
     app.create_editor_panel(ctx);
+
+    // Shortcuts
+    shortcuts::editor_shortcuts(app, ctx);
 }

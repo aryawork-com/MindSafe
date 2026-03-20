@@ -29,9 +29,6 @@
 //! let new_wrapped = change_password(&wrapped_json, password, "new-password")?;
 //! ```
 //!
-use ::sha2::Sha256;
-use ::uuid::Uuid;
-use ::zeroize::ZeroizeOnDrop;
 use argon2::{Argon2, Params};
 use cfg_if::cfg_if;
 use chacha20poly1305::{
@@ -41,8 +38,10 @@ use chacha20poly1305::{
 use getrandom::{SysRng, rand_core::TryRng};
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use thiserror::Error;
-use zeroize::{Zeroize, Zeroizing};
+use uuid::Uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 // ---------------------- Configuration / Limits ----------------------
 
@@ -77,6 +76,24 @@ pub struct KdfParams {
     pub p_cost: u32,     // parallelism
     #[serde(with = "serde_bytes")]
     pub salt: Vec<u8>, // raw bytes in memory; for JSON envelope we use base64
+    pub workspace_id: String,
+}
+
+impl KdfParams {
+    pub fn new(workspace_id: &str) -> Self {
+        let mut salt: Vec<u8> = vec![0u8; MIN_SALT_LEN];
+        let _ = SysRng.try_fill_bytes(&mut salt);
+
+        KdfParams {
+            version: 1,
+            alg: Self::MAIN_ALGORITHM.to_string(),
+            m_cost_kib: Self::MEMORY_COST_KIB,
+            t_cost: Self::ITERATIONS,
+            p_cost: Self::PARALELLISM,
+            salt,
+            workspace_id: workspace_id.to_string(),
+        }
+    }
 }
 
 impl Default for KdfParams {
@@ -93,6 +110,7 @@ impl Default for KdfParams {
             t_cost: Self::ITERATIONS,
             p_cost: Self::PARALELLISM,
             salt,
+            workspace_id: String::new(),
         }
     }
 }
@@ -108,7 +126,7 @@ impl KdfParams {
         format!("mindsafe:noteKey:{notes_id}:v1").into_bytes()
     }
 
-    fn notes_default(notes_id: &Uuid) -> Self {
+    fn notes_default(notes_id: &Uuid, workspace_id: &str) -> Self {
         KdfParams {
             version: 1,
             alg: Self::MAIN_NOTE_ALGORITHM.to_string(),
@@ -116,6 +134,7 @@ impl KdfParams {
             t_cost: 0,
             p_cost: 0,
             salt: KdfParams::derive_note_salt(notes_id),
+            workspace_id: workspace_id.to_string(),
         }
     }
 
@@ -129,6 +148,7 @@ impl KdfParams {
             t_cost: Self::ITERATIONS,
             p_cost: Self::PARALELLISM,
             salt: saved_params.salt.clone(),
+            workspace_id: saved_params.workspace_id.clone(),
         }
     }
     pub fn get_from_note(saved_params: &KdfParams) -> Self {
@@ -139,6 +159,7 @@ impl KdfParams {
             t_cost: 0,
             p_cost: 0,
             salt: saved_params.salt.clone(),
+            workspace_id: saved_params.workspace_id.clone(),
         }
     }
 }
@@ -323,9 +344,13 @@ pub struct EncryptionService {}
 impl EncryptionService {
     /// Encrypt arbitrary plaintext with a password (convenience, accepts &str).
     /// Returns compact base64 JSON blob string.
-    pub(super) fn encrypt_with_password(password: &str, plaintext: &[u8]) -> Result<EncryptedBlob> {
+    pub(super) fn encrypt_with_password(
+        workspace_id: &str,
+        password: &str,
+        plaintext: &[u8],
+    ) -> Result<EncryptedBlob> {
         let pw_bytes: &[u8] = password.as_bytes();
-        encrypt_with_password_bytes(&Zeroizing::new(pw_bytes.to_vec()), plaintext)
+        encrypt_with_password_bytes(workspace_id, &Zeroizing::new(pw_bytes.to_vec()), plaintext)
     }
 
     /// Decrypt with password convenience wrapper (accepts &str).
@@ -352,11 +377,17 @@ impl EncryptionService {
     /// Encrypt arbitrary plaintext with a password (convenience, accepts &str).
     /// Returns compact base64 JSON blob string.
     pub(super) fn encrypt_with_key(
+        workspace_id: &str,
         file_key: &[u8],
         note_id: &Uuid,
         plaintext: &[u8],
     ) -> Result<EncryptedBlob> {
-        encrypt_with_note_key_bytes(&Zeroizing::new(file_key.to_vec()), note_id, plaintext)
+        encrypt_with_note_key_bytes(
+            workspace_id,
+            &Zeroizing::new(file_key.to_vec()),
+            note_id,
+            plaintext,
+        )
     }
 
     /// Decrypt with password convenience wrapper (accepts &str).
@@ -391,6 +422,7 @@ fn derive_key(master_key: &[u8], info: &[u8]) -> Vec<u8> {
 // Encrypt with password bytes so the caller can pass Zeroizing<Vec<u8>> and avoid
 /// leaving an extra non-zeroizable copy of the password in memory.
 fn encrypt_with_note_key_bytes(
+    workspace_id: &str,
     file_key: &Zeroizing<Vec<u8>>,
     note_id: &Uuid,
     plaintext: &[u8],
@@ -403,7 +435,7 @@ fn encrypt_with_note_key_bytes(
     }
 
     // Prepare KDF params and derive key
-    let kdf: KdfParams = KdfParams::notes_default(note_id);
+    let kdf: KdfParams = KdfParams::notes_default(note_id, workspace_id);
 
     // Derive notes key from file_key and info (salt)
     let note_key = derive_key(file_key, &kdf.salt);
@@ -509,6 +541,7 @@ fn decrypt_with_note_key_bytes(
 // Encrypt with password bytes so the caller can pass Zeroizing<Vec<u8>> and avoid
 /// leaving an extra non-zeroizable copy of the password in memory.
 fn encrypt_with_password_bytes(
+    workspace_id: &str,
     password: &Zeroizing<Vec<u8>>,
     plaintext: &[u8],
 ) -> Result<EncryptedBlob> {
@@ -520,7 +553,7 @@ fn encrypt_with_password_bytes(
     }
 
     // Prepare KDF params and derive key
-    let kdf: KdfParams = KdfParams::default();
+    let kdf: KdfParams = KdfParams::new(workspace_id);
 
     let mut key: Zeroizing<[u8; 32]> = derive_key_from_bytes(password, &kdf)?;
     lock_memory(&mut *key);
@@ -584,6 +617,9 @@ fn decrypt_with_password_bytes(
 
     if blob.kdf.salt.len() < MIN_SALT_LEN || blob.kdf.salt.len() > MAX_SALT_LEN {
         return Err(CryptoError::InvalidInput("salt length out of range"));
+    }
+    if Uuid::parse_str(&blob.kdf.workspace_id).is_err() {
+        return Err(CryptoError::InvalidInput("invalid workspace_id UUID"));
     }
     if blob.kdf.alg != KdfParams::MAIN_ALGORITHM {
         return Err(CryptoError::InvalidInput("unsupported kdf"));
